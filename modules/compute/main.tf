@@ -23,6 +23,55 @@ resource "azurerm_lb_backend_address_pool" "back-pool" {
   loadbalancer_id = azurerm_lb.lb.id
 }
 
+resource "azurerm_lb_probe" "http_probe" {
+  name            = "http-running-probe"
+  loadbalancer_id = azurerm_lb.lb.id
+  port            = 80
+  protocol        = "Http"
+  request_path    = "/"
+}
+
+resource "azurerm_lb_rule" "http_lb_rule" {
+  name                           = "http-routing-rule"
+  loadbalancer_id                = azurerm_lb.lb.id
+  protocol                       = "Tcp"
+  frontend_port                  = 80
+  backend_port                   = 80
+  frontend_ip_configuration_name = var.lb-ip-name
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.back-pool.id]
+  probe_id                       = azurerm_lb_probe.http_probe.id
+}
+
+resource "azurerm_network_security_group" "vmss_nsg" {
+  name                = "${var.vm-name}-nsg"
+  location            = var.rs-loc
+  resource_group_name = var.rs-name
+
+  security_rule {
+    name                       = "Allow-LB-HTTP-Inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Deny-Public-Inbound"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+}
+
 resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   name                            = var.vm-name
   resource_group_name             = var.rs-name
@@ -32,7 +81,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   admin_username                  = var.usr
   admin_password                  = var.pwd
   disable_password_authentication = false
-  custom_data = base64encode(file("${path.module}/scripts/setup.sh"))
+  custom_data                     = base64encode(file("${path.module}/scripts/setup.sh"))
 
   os_disk {
     caching              = var.caching
@@ -47,8 +96,9 @@ resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   }
 
   network_interface {
-    name    = var.nic-name
-    primary = true
+    name                      = var.nic-name
+    primary                   = true
+    network_security_group_id = azurerm_network_security_group.vmss_nsg.id
 
     ip_configuration {
       name                                   = var.nic-ipconfig-name
@@ -72,8 +122,7 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
       default = var.min-vm
       minimum = var.min-vm
       maximum = var.max-vm
-    }
-  
+    } 
 
     rule {
       metric_trigger {
