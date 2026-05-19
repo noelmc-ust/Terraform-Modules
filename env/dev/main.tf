@@ -37,5 +37,5 @@ module "compute_layer" {
   vmsize            = "Standard_B2ats_v2"
   min-vm            = "1"
   max-vm            = "3"
-  alert-email       = "dev-alerts@company.com"
+  alert-email       = "noelmathews123@gmail.com"
 }

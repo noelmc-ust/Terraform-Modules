@@ -39,5 +39,5 @@ module "compute_layer" {
   vmsize            = "Standard_D2as_v5" 
   min-vm            = "4"                
   max-vm            = "12"                
-  alert-email       = "production-oncall@company.com"
+  alert-email       = "noelmathews123@gmail.com"
 }

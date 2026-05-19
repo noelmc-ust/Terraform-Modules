@@ -32,6 +32,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   admin_username                  = var.usr
   admin_password                  = var.pwd
   disable_password_authentication = false
+  custom_data = base64encode(file("${path.module}/scripts/setup.sh"))
 
   os_disk {
     caching              = var.caching
