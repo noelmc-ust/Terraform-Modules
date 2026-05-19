@@ -140,17 +140,17 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
       maximum = var.max-vm
     } 
 
-    # Aggressive Scale-Out Rule (2-Minute Sliding Evaluation Window)
+    # Aggressive Scale-Out Rule 
     rule {
       metric_trigger {
         metric_name        = "Percentage CPU"
         metric_resource_id = azurerm_linux_virtual_machine_scale_set.organic-vmss.id
         time_grain         = "PT1M"
         statistic          = "Average"
-        time_window        = "PT2M"       
+        time_window        = "PT2M"       # 2-Minute Window
         time_aggregation   = "Average"
         operator           = "GreaterThan"
-        threshold          = 50           
+        threshold          = 40           # Lowered to 40% CPU
       }
 
       scale_action {
@@ -171,7 +171,7 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
         time_window        = "PT5M"
         time_aggregation   = "Average"
         operator           = "LessThan"
-        threshold          = 30
+        threshold          = 25           # Lowered to 25% so it doesn't fight the scale-out
       }
 
       scale_action {
@@ -183,7 +183,6 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
     }
   }
 
-  # --- MOVED HERE: OUTSIDE THE PROFILE BLOCK, INSIDE THE MAIN AUTOSCALE RESOURCE ---
   notification {
     email {
       send_to_subscription_administrator    = false
@@ -225,7 +224,7 @@ resource "azurerm_monitor_metric_alert" "cpu_alert" {
   name                = "high-alert"
   resource_group_name = var.rs-name
   scopes              = [azurerm_linux_virtual_machine_scale_set.organic-vmss.id]
-  description         = "Triggers when VMSS core CPU capacity climbs over 50%"
+  description         = "Triggers when VMSS core CPU capacity climbs over 40%"
   severity            = 2
 
   criteria {
@@ -233,7 +232,7 @@ resource "azurerm_monitor_metric_alert" "cpu_alert" {
     metric_name      = "Percentage CPU"
     aggregation      = "Average"
     operator         = "GreaterThan"
-    threshold        = 50                 # Synced with your 50% autoscale validation goal
+    threshold        = 40                 # Synced with your 40% autoscale validation goal
   }
 
   action {
