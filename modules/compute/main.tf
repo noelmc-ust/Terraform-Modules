@@ -1,3 +1,7 @@
+# ===============================================================================
+# PUBLIC IP & LOAD BALANCER CONFIGURATION
+# ===============================================================================
+
 resource "azurerm_public_ip" "lb-ip" {
   name                = var.lb-ip-name
   resource_group_name = var.rs-name
@@ -42,6 +46,10 @@ resource "azurerm_lb_rule" "http_lb_rule" {
   probe_id                       = azurerm_lb_probe.http_probe.id
 }
 
+# ===============================================================================
+# NETWORK SECURITY GROUP (NSG) RULES
+# ===============================================================================
+
 resource "azurerm_network_security_group" "vmss_nsg" {
   name                = "${var.vm-name}-nsg"
   location            = var.rs-loc
@@ -71,6 +79,10 @@ resource "azurerm_network_security_group" "vmss_nsg" {
     destination_address_prefix = "*"
   }
 }
+
+# ===============================================================================
+# VIRTUAL MACHINE SCALE SET (VMSS)
+# ===============================================================================
 
 resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   name                            = var.vm-name
@@ -109,6 +121,10 @@ resource "azurerm_linux_virtual_machine_scale_set" "organic-vmss" {
   }
 }
 
+# ===============================================================================
+# AUTOSCALE TARGET SETTINGS (WITH TIGHT TIME-WINDOW & EMAIL NOTIFICATION)
+# ===============================================================================
+
 resource "azurerm_monitor_autoscale_setting" "autoscale" {
   name                = "autoscale-settings"
   resource_group_name = var.rs-name
@@ -124,26 +140,28 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
       maximum = var.max-vm
     } 
 
+    # Aggressive Scale-Out Rule (2-Minute Sliding Evaluation Window)
     rule {
       metric_trigger {
         metric_name        = "Percentage CPU"
         metric_resource_id = azurerm_linux_virtual_machine_scale_set.organic-vmss.id
         time_grain         = "PT1M"
         statistic          = "Average"
-        time_window        = "PT5M"
+        time_window        = "PT2M"       
         time_aggregation   = "Average"
         operator           = "GreaterThan"
-        threshold          = 60
+        threshold          = 50           
       }
 
       scale_action {
         direction = "Increase"
         type      = "ChangeCount"
         value     = 1 
-        cooldown  = "PT5M"
+        cooldown  = "PT2M"                
       }
     }
 
+    # Scale-In Rule
     rule {
       metric_trigger {
         metric_name        = "Percentage CPU"
@@ -153,7 +171,7 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
         time_window        = "PT5M"
         time_aggregation   = "Average"
         operator           = "LessThan"
-        threshold          = 40
+        threshold          = 30
       }
 
       scale_action {
@@ -164,7 +182,19 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
       }
     }
   }
+
+  # --- MOVED HERE: OUTSIDE THE PROFILE BLOCK, INSIDE THE MAIN AUTOSCALE RESOURCE ---
+  notification {
+    email {
+      send_to_subscription_administrator    = false
+      custom_emails                         = [var.alert-email]
+    }
+  }
 }
+
+# ===============================================================================
+# ALERTING INFRASTRUCTURE (SERVICE BUS & ACTION GROUP ALERTS)
+# ===============================================================================
 
 resource "azurerm_servicebus_namespace" "sb" {
   name                = "${var.vm-name}-alert-bus"
@@ -195,7 +225,7 @@ resource "azurerm_monitor_metric_alert" "cpu_alert" {
   name                = "high-alert"
   resource_group_name = var.rs-name
   scopes              = [azurerm_linux_virtual_machine_scale_set.organic-vmss.id]
-  description         = "Triggers when VMSS core CPU capacity climbs"
+  description         = "Triggers when VMSS core CPU capacity climbs over 50%"
   severity            = 2
 
   criteria {
@@ -203,7 +233,7 @@ resource "azurerm_monitor_metric_alert" "cpu_alert" {
     metric_name      = "Percentage CPU"
     aggregation      = "Average"
     operator         = "GreaterThan"
-    threshold        = 85
+    threshold        = 50                 # Synced with your 50% autoscale validation goal
   }
 
   action {
