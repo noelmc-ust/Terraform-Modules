@@ -34,10 +34,7 @@ module "compute_layer" {
   sub1_id           = module.network_layer.sub1id
   sub2_id           = module.network_layer.sub2id
   vm-name           = "organicvm-dev"
-  
-  # CHANGE THIS LINE: Move away from the Burstable (B-series) VM
   vmsize            = "Standard_D2s_v3" 
-  
   min-vm            = "1"
   max-vm            = "3"
   alert-email       = "noelmathews123@gmail.com"
